@@ -168,7 +168,7 @@ inline float32x4_t vexpq_f32(float32x4_t x)
 
 inline float32x4_t verfq_f32(float32x4_t x)
 {
-    
+    return x;
 }
 
 inline float32x4_t vlogq_f32(float32x4_t x)
