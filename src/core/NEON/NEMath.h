@@ -94,6 +94,14 @@ float32x4_t vtaylor_polyq_f32(float32x4_t x, const std::array<float32x4_t, 8> &c
  */
 float32x4_t vexpq_f32(float32x4_t x);
 
+/** Calculate error function
+ * 
+ * @param[in] x Input vector in F32 format.
+ * 
+ * @return The calculated erf.
+ */
+float32x4_t verfq_f32(float32x4_t x);
+
 /** Calculate logarithm
  *
  * @param[in] x Input vector value in F32 format.
@@ -307,6 +315,14 @@ float16x8_t vinvsqrtq_f16(float16x8_t x);
  * @return The calculated exponent.
  */
 float16x8_t vexpq_f16(float16x8_t x);
+
+/** Calculate error function
+ * 
+ * @param[in] x Input vector in F16 format.
+ * 
+ * @return The calculated erf.
+ */
+float16x8_t verfq_f16(float16x8_t x);
 
 /** Calculate n power of a number.
  *

@@ -146,6 +146,9 @@ void fp_neon_activation_impl(const ITensor *src, ITensor *dst, const ActivationL
                 case ActivationLayerInfo::ActivationFunction::HARD_SWISH:
                     tmp = wrapper::vmul(vin, wrapper::vmul(const_inv_6, wrapper::vmin(const_6, wrapper::vmax(const_0, wrapper::vadd(vin, const_3)))));
                     break;
+                case ActivationLayerInfo::ActivationFunction::GELU:
+                    tmp = vin;
+                    break;
                 default:
                     ARM_COMPUTE_ERROR("Unsupported activation function");
             }
