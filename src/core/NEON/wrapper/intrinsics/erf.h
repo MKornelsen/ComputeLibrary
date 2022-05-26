@@ -29,7 +29,7 @@ VERF_IMPL(float32x4_t, verfq, f32)
 #ifdef __ARM_FEATURE_FP16_VECTOR_ARITHMETIC
 VERF_IMPL(float16x8_t, verfq, f16)
 #endif // __ARM_FEATURE_FP16_VECTOR_ARITHMETIC
-VERF_IMPL_INT(int32x4_t, verfq, s32)
+// VERF_IMPL_INT(int32x4_t, verfq, s32)
 
 #undef VLOG_IMPL
 
