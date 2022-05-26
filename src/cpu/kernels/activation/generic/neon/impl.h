@@ -79,8 +79,8 @@ void fp_neon_activation_impl(const ITensor *src, ITensor *dst, const ActivationL
     const auto      const_3           = wrapper::vdup_n(static_cast<T>(3.f), ExactTagType{});
     const auto      const_inv_2       = wrapper::vdup_n(static_cast<T>(0.5f), ExactTagType{});
     const auto      const_inv_6       = wrapper::vdup_n(static_cast<T>(0.166666667f), ExactTagType{});
-    const auto      const_inv_sqrt_2      = wrapper::vdup_n(static_cast<T>(0.70710678118f), ExactTagType{});
-    const auto      const_sqrt_2      = wrapper::vdup_n(static_cast<T>(1.41421356237f), ExactTagType{});
+    // const auto      const_inv_sqrt_2      = wrapper::vdup_n(static_cast<T>(0.70710678118f), ExactTagType{});
+    // const auto      const_sqrt_2      = wrapper::vdup_n(static_cast<T>(1.41421356237f), ExactTagType{});
     const auto      const_sqrt_2_over_pi = wrapper::vdup_n(static_cast<T>(0.7978845608f), ExactTagType{});
     const auto      const_gelu_tanh_coef = wrapper::vdup_n(static_cast<T>(0.044715f), ExactTagType{});
     constexpr float soft_relu_thresh  = 12.f;
