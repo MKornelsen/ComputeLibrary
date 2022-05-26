@@ -213,6 +213,7 @@ void fp_neon_activation_impl(const ITensor *src, ITensor *dst, const ActivationL
                     break;
                 case ActivationLayerInfo::ActivationFunction::GELU:
                     tmp = in * static_cast<T>(0.5f * (1.0f + std::erff(static_cast<float>(in) / 1.41421356237f)));
+                    break;
                 default:
                     ARM_COMPUTE_ERROR("Unsupported activation function");
             }
