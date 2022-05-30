@@ -79,10 +79,10 @@ void fp_neon_activation_impl(const ITensor *src, ITensor *dst, const ActivationL
     const auto      const_3           = wrapper::vdup_n(static_cast<T>(3.f), ExactTagType{});
     const auto      const_inv_2       = wrapper::vdup_n(static_cast<T>(0.5f), ExactTagType{});
     const auto      const_inv_6       = wrapper::vdup_n(static_cast<T>(0.166666667f), ExactTagType{});
-    // const auto      const_inv_sqrt_2      = wrapper::vdup_n(static_cast<T>(0.70710678118f), ExactTagType{});
+    const auto      const_inv_sqrt_2      = wrapper::vdup_n(static_cast<T>(0.70710678118f), ExactTagType{});
     // const auto      const_sqrt_2      = wrapper::vdup_n(static_cast<T>(1.41421356237f), ExactTagType{});
-    const auto      const_sqrt_2_over_pi = wrapper::vdup_n(static_cast<T>(0.7978845608f), ExactTagType{});
-    const auto      const_gelu_tanh_coef = wrapper::vdup_n(static_cast<T>(0.044715f), ExactTagType{});
+    // const auto      const_sqrt_2_over_pi = wrapper::vdup_n(static_cast<T>(0.7978845608f), ExactTagType{});
+    // const auto      const_gelu_tanh_coef = wrapper::vdup_n(static_cast<T>(0.044715f), ExactTagType{});
     constexpr float soft_relu_thresh  = 12.f;
     const auto      vsoft_relu_thresh = wrapper::vdup_n(static_cast<T>(soft_relu_thresh), ExactTagType{});
     const auto      va                = wrapper::vdup_n(static_cast<T>(act_info.a()), ExactTagType{});
@@ -152,10 +152,10 @@ void fp_neon_activation_impl(const ITensor *src, ITensor *dst, const ActivationL
                     tmp = wrapper::vmul(vin, wrapper::vmul(const_inv_6, wrapper::vmin(const_6, wrapper::vmax(const_0, wrapper::vadd(vin, const_3)))));
                     break;
                 case ActivationLayerInfo::ActivationFunction::GELU:
-                    #define INTANH wrapper::vmul(const_sqrt_2_over_pi, wrapper::vadd(vin, wrapper::vmul(const_gelu_tanh_coef, wrapper::vmul(vin, wrapper::vmul(vin, vin)))))
-                    tmp = wrapper::vmul(wrapper::vmul(const_inv_2, vin), wrapper::vadd(const_1, wrapper::vtanh(INTANH)));
-                    #undef INTANH
-                    // tmp = wrapper::vmul(const_inv_2, wrapper::vmul(vin, wrapper::vadd(const_1, wrapper::verf(wrapper::vmul(vin, const_inv_sqrt_2)))));
+                    // #define INTANH wrapper::vmul(const_sqrt_2_over_pi, wrapper::vadd(vin, wrapper::vmul(const_gelu_tanh_coef, wrapper::vmul(vin, wrapper::vmul(vin, vin)))))
+                    // tmp = wrapper::vmul(wrapper::vmul(const_inv_2, vin), wrapper::vadd(const_1, wrapper::vtanh(INTANH)));
+                    // #undef INTANH
+                    tmp = wrapper::vmul(vin, wrapper::vmul(const_inv_2, wrapper::vadd(const_1, wrapper::verf(wrapper::vmul(vin, const_inv_sqrt_2)))));
                     break;
                 default:
                     ARM_COMPUTE_ERROR("Unsupported activation function");

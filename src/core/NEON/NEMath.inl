@@ -168,7 +168,35 @@ inline float32x4_t vexpq_f32(float32x4_t x)
 
 inline float32x4_t verfq_f32(float32x4_t x)
 {
-    return x;
+    static const float erffdata[4] = {0.278393f, 0.230389f, 0.000972f, 0.078108f};
+    const float32x4_t coeffdata = vld1q_f32(erffdata);
+    uint32x4_t selector = vcltzq_f32(x);
+
+    float32x4_t absx = vabsq_f32(x);
+    float32x4_t absx2 = vmulq_f32(absx, absx);
+    float32x4_t absx3 = vmulq_f32(absx2, absx);
+    float32x4_t absx4 = vmulq_f32(absx2, absx2);
+
+    float32x4_t denom = vdupq_n_f32(1.0f);
+    denom = vfmaq_laneq_f32(denom, absx, coeffdata, 0);
+    denom = vfmaq_laneq_f32(denom, absx2, coeffdata, 1);
+    denom = vfmaq_laneq_f32(denom, absx3, coeffdata, 2);
+    denom = vfmaq_laneq_f32(denom, absx4, coeffdata, 3);
+
+    denom = vmulq_f32(denom, denom);
+    denom = vmulq_f32(denom, denom);
+
+    float32x4_t fract = vdupq_n_f32(1.0f);
+    fract = vdivq_f32(fract, denom);
+
+    float32x4_t result = vdupq_n_f32(1.0f);
+    result = vsubq_f32(result, fract);
+
+    float32x4_t inverse = vnegq_f32(result);
+
+    result = vbslq_f32(selector, inverse, result);
+
+    return result;
 }
 
 inline float32x4_t vlogq_f32(float32x4_t x)
