@@ -112,7 +112,7 @@ void neon_qasymm8_meanstddevnorm(ITensor *input, ITensor *output, float epsilon,
 
         float mean = (float) sum / (float) input->info()->dimension(0);
         float var = ((float) sum_sq / (float) input->info()->dimension(0)) - (mean * mean);
-        float stdev_inv = 1.0f / std::sqrtf(var + epsilon);
+        float stdev_inv = 1.0f / sqrtf(var + epsilon);
         
         x = window_start_x;
         // std::cout << "mean = " << mean << ", var = " << var << std::endl;
