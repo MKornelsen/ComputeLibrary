@@ -98,7 +98,7 @@ static const std::vector<CpuActivationKernel::ActivationKernel> available_kernel
 };
 
 /* Supported activation in the 8-bit integer domain */
-static const std::array<ActivationLayerInfo::ActivationFunction, 7> qasymm8_activations =
+static const std::array<ActivationLayerInfo::ActivationFunction, 8> qasymm8_activations =
 {
     ActivationLayerInfo::ActivationFunction::RELU,
     ActivationLayerInfo::ActivationFunction::LU_BOUNDED_RELU,
@@ -107,6 +107,7 @@ static const std::array<ActivationLayerInfo::ActivationFunction, 7> qasymm8_acti
     ActivationLayerInfo::ActivationFunction::TANH,
     ActivationLayerInfo::ActivationFunction::HARD_SWISH,
     ActivationLayerInfo::ActivationFunction::LEAKY_RELU,
+    ActivationLayerInfo::ActivationFunction::GELU,
 };
 /* Supported activation in the 16-bit integer domain */
 static const std::array<ActivationLayerInfo::ActivationFunction, 3> qsymm16_activations =

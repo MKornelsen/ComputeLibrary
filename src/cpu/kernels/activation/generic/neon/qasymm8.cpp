@@ -70,6 +70,13 @@ void neon_qasymm8_activation(const ITensor *src, ITensor *dst, const ActivationL
     const auto        const_3_f32     = vdupq_n_f32(3.f);
     const auto        const_inv_6_f32 = vdupq_n_f32(0.166666667f);
 
+    const auto      const_1           = vdupq_n_f32(1.f);
+    const auto      const_inv_2       = vdupq_n_f32(0.5f);
+    const auto      const_inv_sqrt_2  = vdupq_n_f32(0.70710678118f);
+
+    // std::cout << "qi_in: (" << qi_in.offset << ", " << qi_in.scale << ")" << std::endl;
+    // std::cout << "qi_out: (" << qi_out.offset << ", " << qi_out.scale << ")" << std::endl;
+
     // Initialise scale/offset for re-quantization
     float       s  = qi_in.scale / qi_out.scale;
     float       o  = -qi_in.offset * s + qi_out.offset;
@@ -198,6 +205,21 @@ void neon_qasymm8_activation(const ITensor *src, ITensor *dst, const ActivationL
 
                 tmp = vquantize(tmp_dep, qi_out);
             }
+            else if (act == ActivationLayerInfo::ActivationFunction::GELU) {
+                const auto vin_deq = vdequantize(vin, qi_in);
+                // Perform activation
+                const float32x4x4_t tmp_dep =
+                {
+                    {
+                        wrapper::vmul(vin_deq.val[0], wrapper::vmul(const_inv_2, wrapper::vadd(const_1, wrapper::verf(wrapper::vmul(vin_deq.val[0], const_inv_sqrt_2))))),
+                        wrapper::vmul(vin_deq.val[1], wrapper::vmul(const_inv_2, wrapper::vadd(const_1, wrapper::verf(wrapper::vmul(vin_deq.val[1], const_inv_sqrt_2))))),
+                        wrapper::vmul(vin_deq.val[2], wrapper::vmul(const_inv_2, wrapper::vadd(const_1, wrapper::verf(wrapper::vmul(vin_deq.val[2], const_inv_sqrt_2))))),
+                        wrapper::vmul(vin_deq.val[3], wrapper::vmul(const_inv_2, wrapper::vadd(const_1, wrapper::verf(wrapper::vmul(vin_deq.val[3], const_inv_sqrt_2))))),
+                    }
+                };
+                // Re-quantize to new output space
+                tmp = vquantize(tmp_dep, qi_out);
+            }
             else
             {
                 ARM_COMPUTE_ERROR("Unsupported activation function");
@@ -248,6 +270,11 @@ void neon_qasymm8_activation(const ITensor *src, ITensor *dst, const ActivationL
                 float tmp_f = dequantize_qasymm8(in, qi_in);
                 tmp_f       = tmp_f > 0 ? tmp_f : tmp_f * a_f32;
                 tmp         = quantize_qasymm8(tmp_f, qi_out);
+            }
+            else if (act == ActivationLayerInfo::ActivationFunction::GELU) {
+                float tmp_f = dequantize_qasymm8(in, qi_in);
+                tmp = tmp_f * 0.5f * (1.0f + std::erff(in / 1.41421356237f));
+                tmp = quantize_qasymm8(tmp_f, qi_out);
             }
             else
             {
