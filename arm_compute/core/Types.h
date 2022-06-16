@@ -2023,6 +2023,7 @@ public:
           _fast_math(fast_math),
           _fp_mixed_precision(fp_mixed_precision),
           _broadcast_bias(broadcast_bias),
+          _negated_offsets(true),
           _pretranspose_B(reshape_b_only_on_first_run),
           _activation_info(activation_info),
           _post_ops(post_ops)
