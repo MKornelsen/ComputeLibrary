@@ -60,46 +60,34 @@ void neon_qasymm8_meanstddevnorm(ITensor *input, ITensor *output, float epsilon,
     const float32x4_t output_inv_scale_vec = vdupq_n_f32(output_inv_scale);
     const float32x4_t output_offset_vec = vdupq_n_f32(output_offset);
 
-    const int32x4_t max_vec = vdupq_n_s32(0);
-    const int32x4_t min_vec = vdupq_n_s32(255);
+    // const int32x4_t max_vec = vdupq_n_s32(0);
+    // const int32x4_t min_vec = vdupq_n_s32(255);
+
+    const float32x4_t quant_max_vec = vdupq_n_f32(255.0f);
+    const float32x4_t quant_min_vec = vdupq_n_f32(0.0f);
 
     execute_window_loop(win, [&](const Coordinates &)
     {
         int x = window_start_x;
         auto in_ptr = reinterpret_cast<const uint8_t *>(input_itr.ptr());
         auto out_ptr = reinterpret_cast<uint8_t *>(output_itr.ptr());
-        /*
+
         uint32x4_t sum_vec = vdupq_n_u32(0);
         uint32x4_t sum_sq_vec = vdupq_n_u32(0);
 
         for (; x <= (window_end_x - window_step_x); x += window_step_x) {
             const uint8x16_t data = vld1q_u8(in_ptr + x);
             
-            const uint16x8_t datalow = vmovl_u8(vget_low_u8(data));
-            const uint16x8_t datahigh = vmovl_high_u8(data);
+            sum_vec = vaddq_u32(sum_vec, vpaddlq_u16(vpaddlq_u8(data)));
 
-            const uint32x4_t db1 = vmovl_u16(vget_low_u16(datalow));
-            const uint32x4_t db2 = vmovl_high_u16(datalow);
-
-            const uint32x4_t db3 = vmovl_u16(vget_low_u16(datahigh));
-            const uint32x4_t db4 = vmovl_high_u16(datahigh);
-
-            sum_vec = vaddq_u32(sum_vec, db1);
-            sum_vec = vaddq_u32(sum_vec, db2);
-            sum_vec = vaddq_u32(sum_vec, db3);
-            sum_vec = vaddq_u32(sum_vec, db4);
-            
-            sum_sq_vec = vaddq_u32(sum_sq_vec, vmulq_u32(db1, db1));
-            sum_sq_vec = vaddq_u32(sum_sq_vec, vmulq_u32(db2, db2));
-            sum_sq_vec = vaddq_u32(sum_sq_vec, vmulq_u32(db3, db3));
-            sum_sq_vec = vaddq_u32(sum_sq_vec, vmulq_u32(db4, db4));
+            const uint16x8_t squares_low = vmull_u8(vget_low_u8(data), vget_low_u8(data));
+            const uint16x8_t squares_high = vmull_high_u8(data, data);
+            sum_sq_vec = vaddq_u32(sum_sq_vec, vaddq_u32(vpaddlq_u16(squares_low), vpaddlq_u16(squares_high)));
         }
 
         uint32_t sum = vaddvq_u32(sum_vec);
         uint32_t sum_sq = vaddvq_u32(sum_sq_vec);
-        */
-        uint32_t sum = 0;
-        uint32_t sum_sq = 0;
+        
         // std::cout << "vector only: " << "sum = " << sum << ", sum_sq = " << sum_sq << std::endl;
 
         for (; x < window_end_x; ++x) {
@@ -115,64 +103,34 @@ void neon_qasymm8_meanstddevnorm(ITensor *input, ITensor *output, float epsilon,
         float stdev_inv = 1.0f / sqrtf(var + epsilon);
         
         x = window_start_x;
-        // std::cout << "mean = " << mean << ", var = " << var << std::endl;
-        /*
-        uint32_t stdev = 256;
-        stdev = (stdev + var / stdev) / 2;
-        stdev = (stdev + var / stdev) / 2;
-        stdev = (stdev + var / stdev) / 2;
-        stdev = (stdev + var / stdev) / 2;
-
-        int32x4_t mean_vec = vdupq_n_s32(mean);
-        int32x4_t stdev_vec = vdupq_n_s32(stdev);
-        */
-        /*
+        
         float32x4_t mean_vec = vdupq_n_f32(mean);
         float32x4_t stdev_inv_vec = vdupq_n_f32(stdev_inv);
-
-        for (x = window_start_x; x <= (window_end_x - window_step_x); x++) {
+        for (x = window_start_x; x <= (window_end_x - window_step_x); x+=window_step_x) {
             const uint8x16_t data = vld1q_u8(in_ptr + x);
 
-            const uint16x8_t datalow = vmovl_u8(vget_low_u8(data));
-            const uint16x8_t datahigh = vmovl_high_u8(data);
+            float32x4_t db1 = vcvtq_f32_u32(vmovl_u16(vget_low_u16(vmovl_u8(vget_low_u8(data)))));
+            float32x4_t db2 = vcvtq_f32_u32(vmovl_u16(vget_high_u16(vmovl_u8(vget_low_u8(data)))));
+            float32x4_t db3 = vcvtq_f32_u32(vmovl_u16(vget_low_u16(vmovl_u8(vget_high_u8(data)))));
+            float32x4_t db4 = vcvtq_f32_u32(vmovl_u16(vget_high_u16(vmovl_u8(vget_high_u8(data)))));
 
-            const float32x4_t db1 = vcvtq_f32_u32(vmovl_u16(vget_low_u16(datalow)));
-            const float32x4_t db2 = vcvtq_f32_u32(vmovl_high_u16(datalow));
+            #define NORMALIZE(block) vmulq_f32(stdev_inv_vec, vsubq_f32(block, mean_vec))
+            #define QUANTIZE(block) vaddq_f32(vmulq_f32(block, output_inv_scale_vec), output_offset_vec)
+            #define CLAMP(block) vminq_f32(vmaxq_f32(block, quant_min_vec), quant_max_vec);
 
-            const float32x4_t db3 = vcvtq_f32_u32(vmovl_u16(vget_low_u16(datahigh)));
-            const float32x4_t db4 = vcvtq_f32_u32(vmovl_high_u16(datahigh));
+            db1 = CLAMP(QUANTIZE(NORMALIZE(db1)));
+            db2 = CLAMP(QUANTIZE(NORMALIZE(db2)));
+            db3 = CLAMP(QUANTIZE(NORMALIZE(db3)));
+            db4 = CLAMP(QUANTIZE(NORMALIZE(db4)));
 
-            // const uint32x4_t normb1 = vreinterpretq_u32_s32(vminq_s32(vmaxq_s32(vaddq_s32(vcvtq_s32_f32(vmulq_f32(vmulq_f32(vsubq_f32(db1, mean_vec), stdev_inv_vec), output_inv_scale_vec)), output_offset_vec), max_vec), min_vec));
-            // const uint32x4_t normb2 = vreinterpretq_u32_s32(vminq_s32(vmaxq_s32(vaddq_s32(vcvtq_s32_f32(vmulq_f32(vmulq_f32(vsubq_f32(db2, mean_vec), stdev_inv_vec), output_inv_scale_vec)), output_offset_vec), max_vec), min_vec));
-            // const uint32x4_t normb3 = vreinterpretq_u32_s32(vminq_s32(vmaxq_s32(vaddq_s32(vcvtq_s32_f32(vmulq_f32(vmulq_f32(vsubq_f32(db3, mean_vec), stdev_inv_vec), output_inv_scale_vec)), output_offset_vec), max_vec), min_vec));
-            // const uint32x4_t normb4 = vreinterpretq_u32_s32(vminq_s32(vmaxq_s32(vaddq_s32(vcvtq_s32_f32(vmulq_f32(vmulq_f32(vsubq_f32(db4, mean_vec), stdev_inv_vec), output_inv_scale_vec)), output_offset_vec), max_vec), min_vec));
-            const float32x4_t normb1 = vmulq_f32(vsubq_f32(db1, mean_vec), stdev_inv_vec);
-            const float32x4_t quantb1 = vaddq_f32(vmulq_f32(normb1, output_inv_scale_vec), output_offset_vec);
-            const uint32x4_t outb1 = vreinterpretq_u32_s32(vmaxq_s32(vminq_s32(vcvtq_s32_f32(quantb1), min_vec), max_vec));
+            #define FUSEWORDS(fb1, fb2) vmovn_high_u32(vmovn_u32(vcvtq_u32_f32(fb1)), vcvtq_u32_f32(fb2))
+            #define FUSESHORTS(sb1, sb2) vmovn_high_u16(vmovn_u16(sb1), sb2)
 
-            const float32x4_t normb2 = vmulq_f32(vsubq_f32(db2, mean_vec), stdev_inv_vec);
-            const float32x4_t quantb2 = vaddq_f32(vmulq_f32(normb2, output_inv_scale_vec), output_offset_vec);
-            const uint32x4_t outb2 = vreinterpretq_u32_s32(vmaxq_s32(vminq_s32(vcvtq_s32_f32(quantb2), min_vec), max_vec));
-
-            const float32x4_t normb3 = vmulq_f32(vsubq_f32(db3, mean_vec), stdev_inv_vec);
-            const float32x4_t quantb3 = vaddq_f32(vmulq_f32(normb3, output_inv_scale_vec), output_offset_vec);
-            const uint32x4_t outb3 = vreinterpretq_u32_s32(vmaxq_s32(vminq_s32(vcvtq_s32_f32(quantb3), min_vec), max_vec));
-
-            const float32x4_t normb4 = vmulq_f32(vsubq_f32(db4, mean_vec), stdev_inv_vec);
-            const float32x4_t quantb4 = vaddq_f32(vmulq_f32(normb4, output_inv_scale_vec), output_offset_vec);
-            const uint32x4_t outb4 = vreinterpretq_u32_s32(vmaxq_s32(vminq_s32(vcvtq_s32_f32(quantb4), min_vec), max_vec));
-
-            const uint16x8_t outdatalow = vmovn_high_u32(vmovn_u32(outb1), outb2);
-            const uint16x8_t outdatahigh = vmovn_high_u32(vmovn_u32(outb3), outb4);
-
-            const uint8x16_t outdata = vmovn_high_u16(vmovn_u16(outdatalow), outdatahigh);
-
-            vst1q_u8(out_ptr + x, outdata);
+            uint8x16_t out = FUSESHORTS(FUSEWORDS(db1, db2), FUSEWORDS(db3, db4));
+            vst1q_u8(out_ptr + x, out);
         }
-        */
+
         for (; x < window_end_x; ++x) {
-            // normed = (data - mean) / stdev
-            // quantized = (normed / scale) + offset
 
             float32_t data = static_cast<float32_t>(*(in_ptr + x));
             float32_t normalized = (data - mean) * stdev_inv;
