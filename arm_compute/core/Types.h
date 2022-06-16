@@ -1988,6 +1988,7 @@ public:
           _fp_mixed_precision(false),
           _broadcast_bias(false),
           _pretranspose_B(true),
+          _negated_offsets(true),
           _activation_info(),
           _post_ops()
     {
@@ -2174,6 +2175,14 @@ public:
         _post_ops = post_ops;
     }
 
+    void set_negated_offsets(bool negoffsets) {
+        _negated_offsets = negoffsets;
+    }
+
+    bool negated_offsets() const {
+        return _negated_offsets;
+    }
+
 private:
     bool                                    _is_a_reshaped;
     bool                                    _is_b_reshaped;
@@ -2186,6 +2195,7 @@ private:
     bool                                    _fp_mixed_precision;
     bool                                    _broadcast_bias;
     bool                                    _pretranspose_B;
+    bool                                    _negated_offsets;
     ActivationLayerInfo                     _activation_info;
     experimental::PostOpList<ITensorInfo *> _post_ops;
 };

@@ -65,6 +65,7 @@ cpu::AsmGemmInfo init_assembly_metadata(const GEMMInfo &info)
     asm_info.activation_info         = info.activation_info();
     asm_info.output_stage            = info.gemmlowp_output_stage();
     asm_info.fast_mode               = info.fast_math();
+    asm_info.negated_offsets         = info.negated_offsets();
 
     return asm_info;
 }
