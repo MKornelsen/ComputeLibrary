@@ -169,7 +169,7 @@ inline float32x4_t vexpq_f32(float32x4_t x)
 inline float32x4_t verfq_f32(float32x4_t x)
 {
     static const float erffdata[4] = {0.278393f, 0.230389f, 0.000972f, 0.078108f};
-    const float32x4_t coeffdata = vld1q_f32(erffdata);
+    static const float32x4_t coeffdata = vld1q_f32(erffdata);
     uint32x4_t selector = vcltzq_f32(x);
 
     float32x4_t absx = vabsq_f32(x);
