@@ -128,9 +128,11 @@ template<> void mean_stddev_normalization<float16_t, 8>(ITensor *input, ITensor 
         {
             float16x8_t data = vld1q_f16(in_ptr + x);
             sum_vec = vaddq_f16(sum_vec, data);
-            float16x8_t dsq = vmulq_f16(data, data);
-            sum_sq_vec = vaddq_f32(sum_sq_vec, vcvt_f32_f16(vget_low_f16(dsq)));
-            sum_sq_vec = vaddq_f32(sum_sq_vec, vcvt_high_f32_f16(dsq));
+            // float16x8_t dsq = vmulq_f16(data, data);
+            float32x4_t dl = vcvt_f32_f16(vget_low_f16(data));
+            float32x4_t dh = vcvt_f32_f16(vget_high_f16(data));
+            sum_sq_vec = vaddq_f32(sum_sq_vec, vmulq_f32(dl, dl));
+            sum_sq_vec = vaddq_f32(sum_sq_vec, vmulq_f32(dh, dh));
         }
 
         float16x4_t sum_carry_res = vpadd_f16(vget_high_f16(sum_vec), vget_low_f16(sum_vec));
@@ -155,6 +157,10 @@ template<> void mean_stddev_normalization<float16_t, 8>(ITensor *input, ITensor 
         float16_t mean       = sum / input->info()->dimension(0);
         float var        = (sum_sq / input->info()->dimension(0)) - (mean * mean);
         float16_t stddev_inv = static_cast<float16_t>(1.f / sqrt(var + epsilon));
+
+        if (var == INFINITY) {
+            std::cout << "WARNING: INF VAR" << std::endl;
+        }
 
         float16x8_t mean_vec = vdupq_n_f16(mean);
         float16x8_t stddev_inv_vec = vdupq_n_f16(stddev_inv);
