@@ -600,9 +600,9 @@ void create_arm_gemm_quant(std::unique_ptr<CpuGemmAssemblyDispatch::IFallback> &
     auto fallback = std::make_unique<Fallback<TypeInput, TypeOutput, arm_gemm::Requantize32>>();
 
     // Configure requantization info
-    const int32_t                 negation = info.negated_offsets ? 1 : -1;
-    const int32_t                 a_offset = -a->quantization_info().uniform().offset * negation;
-    const int32_t                 b_offset = -b->quantization_info().uniform().offset * negation;
+    const int32_t                 negation = info.negated_offsets ? -1 : 1;
+    const int32_t                 a_offset = a->quantization_info().uniform().offset * negation;
+    const int32_t                 b_offset = b->quantization_info().uniform().offset * negation;
     const GEMMLowpOutputStageInfo os_info  = info.output_stage;
 
     arm_gemm::Requantize32 gemm_requant_info{};
