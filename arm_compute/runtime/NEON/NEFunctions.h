@@ -75,6 +75,7 @@
 #include "arm_compute/runtime/NEON/functions/NELogical.h"
 #include "arm_compute/runtime/NEON/functions/NEMaxUnpoolingLayer.h"
 #include "arm_compute/runtime/NEON/functions/NEMeanStdDevNormalizationLayer.h"
+#include "arm_compute/runtime/NEON/functions/NEMultiplyAccumulate.h"
 #include "arm_compute/runtime/NEON/functions/NENormalizationLayer.h"
 #include "arm_compute/runtime/NEON/functions/NEPReluLayer.h"
 #include "arm_compute/runtime/NEON/functions/NEPadLayer.h"

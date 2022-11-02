@@ -1710,6 +1710,21 @@
           ]
         }
       },
+      "MultiplyAccumulate": {
+        "files": {
+          "common": [
+            "src/cpu/operators/CpuMultiplyAccumulate.cpp",
+            "src/cpu/kernels/CpuMultiplyAccumulateKernel.cpp",
+            "src/runtime/NEON/functions/NEMultiplyAccumulate.cpp"
+          ],
+          "neon": {
+            "common": ["src/cpu/kernels/multiplyaccumulate/neon/impl.cpp"],
+            "fp32": ["src/cpu/kernels/multiplyaccumulate/neon/fp32.cpp"],
+            "fp16": ["src/cpu/kernels/multiplyaccumulate/neon/fp16.cpp"],
+            "qasymm8_signed": ["src/cpu/kernels/multiplyaccumulate/neon/qasymm8_signed.cpp"]
+          }
+        }  
+      },
       "Normalize": {
         "deps": [ "Mul" ],
         "files": {
