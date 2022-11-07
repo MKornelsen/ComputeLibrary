@@ -412,7 +412,7 @@ void CpuDivisionKernel::configure(const ITensorInfo *src0, const ITensorInfo *sr
 
 Status CpuDivisionKernel::validate_arguments(const ITensorInfo &src0, const ITensorInfo &src1, const ITensorInfo &dst)
 {
-    ARM_COMPUTE_RETURN_ERROR_ON_DATA_TYPE_CHANNEL_NOT_IN(&src0, 1, DataType::S32, DataType::F16, DataType::F32);
+    ARM_COMPUTE_RETURN_ERROR_ON_DATA_TYPE_CHANNEL_NOT_IN(&src0, 1, DataType::S32, DataType::F16, DataType::F32, DataType::QASYMM8_SIGNED);
     return CpuArithmeticKernel::validate_arguments(src0, src1, dst);
 }
 
