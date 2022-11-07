@@ -48,7 +48,7 @@ void multiply_accumulate_qasymm8_signed_neon(const ITensor *src0, const ITensor 
     const int32x4_t voffset_2 = vdupq_n_s32(src2_qinfo.offset);
 
     const float32x4_t vscale_out = vdupq_n_f32(1.0f / dst_qinfo.scale);
-    const int32x4_t voffset_out = vdupq_n_f32(dst_qinfo.offset);
+    const int32x4_t voffset_out = vdupq_n_s32(dst_qinfo.offset);
 
     execute_window_loop(win, [&](const Coordinates &)
     {

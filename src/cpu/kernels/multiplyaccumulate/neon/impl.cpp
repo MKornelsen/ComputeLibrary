@@ -13,10 +13,12 @@ inline float32x4_t float_vmla(const float32x4_t &a, const float32x4_t &b, const 
     return vfmaq_f32(a, b, c);
 }
 
+#if defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC) && defined(ENABLE_FP16_KERNELS)
 inline float16x8_t float_vmla(const float16x8_t &a, const float16x8_t &b, const float16x8_t &c)
 {
     return vfmaq_f16(a, b, c);
 }
+#endif
 
 template <typename ScalarType>
 void multiply_accumulate_float(const ITensor *src0, const ITensor *src1, const ITensor *src2, ITensor *dst, const Window &window)
