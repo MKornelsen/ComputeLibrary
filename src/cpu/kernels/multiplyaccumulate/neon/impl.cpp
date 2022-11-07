@@ -77,7 +77,9 @@ void multiply_accumulate_float(const ITensor *src0, const ITensor *src1, const I
 
 template void multiply_accumulate_float<float>(const ITensor *src0, const ITensor *src1, const ITensor *src2, ITensor *dst, const Window &window);
 
+#if defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC) && defined(ENABLE_FP16_KERNELS)
 template void multiply_accumulate_float<float16_t>(const ITensor *src0, const ITensor *src1, const ITensor *src2, ITensor *dst, const Window &window);
+#endif 
 
 }
 }
