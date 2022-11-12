@@ -33,6 +33,7 @@ namespace cpu
 DECLARE_MEANSTDDEVNORM_KERNEL(neon_fp32_meanstddevnorm);
 DECLARE_MEANSTDDEVNORM_KERNEL(neon_fp16_meanstddevnorm);
 DECLARE_MEANSTDDEVNORM_KERNEL(neon_qasymm8_meanstddevnorm);
+DECLARE_MEANSTDDEVNORM_KERNEL(neon_qasymm8_signed_meanstddevnorm);
 
 #undef DECLARE_MEANSTDDEVNORM_KERNEL
 } // namespace cpu
