@@ -68,6 +68,7 @@
 #include "arm_compute/runtime/NEON/functions/NEGEMMLowpOutputStage.h"
 #include "arm_compute/runtime/NEON/functions/NEGather.h"
 #include "arm_compute/runtime/NEON/functions/NEGenerateProposalsLayer.h"
+#include "arm_compute/runtime/NEON/functions/NEIBERTOperations.h"
 #include "arm_compute/runtime/NEON/functions/NEInstanceNormalizationLayer.h"
 #include "arm_compute/runtime/NEON/functions/NEL2NormalizeLayer.h"
 #include "arm_compute/runtime/NEON/functions/NELSTMLayer.h"

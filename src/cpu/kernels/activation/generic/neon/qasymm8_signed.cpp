@@ -214,7 +214,7 @@ void neon_qasymm8_signed_activation(const ITensor *src, ITensor *dst, const Acti
                     }
                 };
                 // Re-quantize to new output space
-                tmp = vquantize(tmp_dep, qi_out);
+                tmp = vquantize_signed(tmp_dep, qi_out);
             }
             else
             {
@@ -266,6 +266,11 @@ void neon_qasymm8_signed_activation(const ITensor *src, ITensor *dst, const Acti
                 float tmp_f = dequantize_qasymm8_signed(in, qi_in);
                 tmp_f       = tmp_f > 0 ? tmp_f : tmp_f * a_f32;
                 tmp         = quantize_qasymm8_signed(tmp_f, qi_out);
+            }
+            else if (act == ActivationLayerInfo::ActivationFunction::GELU) {
+                float tmp_f = dequantize_qasymm8_signed(in, qi_in);
+                tmp_f = tmp_f * 0.5f * (1.0f + std::erff(tmp_f / 1.41421356237f));
+                tmp = quantize_qasymm8_signed(tmp_f, qi_out);
             }
             else
             {

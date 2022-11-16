@@ -48,8 +48,8 @@ void neon_qasymm8_signed_meanstddevnorm(ITensor *input, ITensor *output, float e
     // const float input_scale = input->info()->quantization_info().scale()[0];
     // const int input_offset = input->info()->quantization_info().offset()[0];
 
-    const float output_scale = output->info()->quantization_info().scale()[0];
-    const int output_offset = output->info()->quantization_info().offset()[0];
+    const float output_scale = output->info()->quantization_info().uniform().scale;
+    const int output_offset = output->info()->quantization_info().uniform().offset;
 
     // const uint32_t output_multiplier = static_cast<uint32_t>(1.0f / output_scale);
 
@@ -57,14 +57,7 @@ void neon_qasymm8_signed_meanstddevnorm(ITensor *input, ITensor *output, float e
     Iterator output_itr(output, win);
 
     const float output_inv_scale = 1.0f / output_scale;
-    const float32x4_t output_inv_scale_vec = vdupq_n_f32(output_inv_scale);
     const float32x4_t output_offset_vec = vdupq_n_f32(output_offset);
-
-    // const int32x4_t max_vec = vdupq_n_s32(0);
-    // const int32x4_t min_vec = vdupq_n_s32(255);
-
-    const float32x4_t quant_max_vec = vdupq_n_f32(127.0f);
-    const float32x4_t quant_min_vec = vdupq_n_f32(-128.0f);
 
     execute_window_loop(win, [&](const Coordinates &)
     {
@@ -118,16 +111,15 @@ void neon_qasymm8_signed_meanstddevnorm(ITensor *input, ITensor *output, float e
             float32x4_t db4 = vcvtq_f32_s32(vmovl_s16(vget_high_s16(vmovl_s8(vget_high_s8(data)))));
 
             #define NORMALIZE(block) vmulq_f32(stdev_inv_vec, vsubq_f32(block, mean_vec))
-            #define QUANTIZE(block) vaddq_f32(vmulq_f32(block, output_inv_scale_vec), output_offset_vec)
-            #define CLAMP(block) vminq_f32(vmaxq_f32(block, quant_min_vec), quant_max_vec);
+            #define QUANTIZE(block) vaddq_f32(vmulq_n_f32(block, output_inv_scale), output_offset_vec)
+    
+            db1 =QUANTIZE(NORMALIZE(db1));
+            db2 =QUANTIZE(NORMALIZE(db2));
+            db3 =QUANTIZE(NORMALIZE(db3));
+            db4 =QUANTIZE(NORMALIZE(db4));
 
-            db1 = CLAMP(QUANTIZE(NORMALIZE(db1)));
-            db2 = CLAMP(QUANTIZE(NORMALIZE(db2)));
-            db3 = CLAMP(QUANTIZE(NORMALIZE(db3)));
-            db4 = CLAMP(QUANTIZE(NORMALIZE(db4)));
-
-            #define FUSEWORDS(fb1, fb2) vmovn_high_s32(vmovn_s32(vcvtq_s32_f32(fb1)), vcvtq_s32_f32(fb2))
-            #define FUSESHORTS(sb1, sb2) vmovn_high_s16(vmovn_s16(sb1), sb2)
+            #define FUSEWORDS(fb1, fb2) vqmovn_high_s32(vqmovn_s32(vcvtq_s32_f32(fb1)), vcvtq_s32_f32(fb2))
+            #define FUSESHORTS(sb1, sb2) vqmovn_high_s16(vqmovn_s16(sb1), sb2)
 
             int8x16_t out = FUSESHORTS(FUSEWORDS(db1, db2), FUSEWORDS(db3, db4));
             vst1q_s8(out_ptr + x, out);
@@ -139,7 +131,8 @@ void neon_qasymm8_signed_meanstddevnorm(ITensor *input, ITensor *output, float e
             float32_t normalized = (data - mean) * stdev_inv;
             float32_t quantized =  normalized * output_inv_scale + output_offset;
             // std::cout << data << " " << normalized << " " << quantized << std::endl;
-            *(out_ptr + x) = static_cast<int8_t>(arm_compute::utility::clamp<int8_t>(quantized));
+
+            *(out_ptr + x) = static_cast<int8_t>(arm_compute::utility::clamp<int32_t, int8_t>(quantized));
         }
         // std::cout << std::endl;
 

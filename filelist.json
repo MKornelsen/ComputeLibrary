@@ -1603,6 +1603,17 @@
           }
         }
       },
+      "IBERTOperations": {
+        "files": {
+          "common": [
+            "src/runtime/NEON/functions/NEIBERTOperations.cpp",
+            "src/cpu/operators/CpuIBERTOperations.cpp"
+          ],
+          "neon": {
+            "common": ["src/cpu/kernels/CpuIBERTKernels.cpp"]
+          }
+        }
+      },
       "InstanceNormalize": {
         "deps": [ "Permute", "Reduction" ],
         "files": {

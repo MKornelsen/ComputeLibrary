@@ -273,7 +273,7 @@ void neon_qasymm8_activation(const ITensor *src, ITensor *dst, const ActivationL
             }
             else if (act == ActivationLayerInfo::ActivationFunction::GELU) {
                 float tmp_f = dequantize_qasymm8(in, qi_in);
-                tmp = tmp_f * 0.5f * (1.0f + std::erff(in / 1.41421356237f));
+                tmp_f = tmp_f * 0.5f * (1.0f + std::erff(tmp_f / 1.41421356237f));
                 tmp = quantize_qasymm8(tmp_f, qi_out);
             }
             else
