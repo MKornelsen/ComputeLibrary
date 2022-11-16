@@ -331,7 +331,7 @@ void CpuIBERTSoftmaxKernel::run_op(ITensorPack &tensors, const Window &window, c
     const int32x4_t qcvec = vmovq_n_s32(qc);
 
     const int inv_qln2_factor = (1 << 14) / qln2;
-    const int neg_inv_qln2_factor = -inv_qln2_factor;
+    // const int neg_inv_qln2_factor = -inv_qln2_factor;
     // const int32x4_t neg_inv_qln2_vector = vmovq_n_s32(neg_inv_qln2_factor);
     // const int32x4_t qln2_vector = vmovq_n_s32(qln2);
 
@@ -379,23 +379,25 @@ void CpuIBERTSoftmaxKernel::run_op(ITensorPack &tensors, const Window &window, c
         
         for (; x <= (window_end_x - window_step_x); x += window_step_x)
         {
-            int8x16_t a = vld1q_s8(input_ptr + x);
+            const int8x16_t a = vld1q_s8(input_ptr + x);
 
-            int16x8_t a_low = vsubq_s16(vmovl_s8(vget_low_s8(a)), max_vec);
-            int16x8_t a_high = vsubq_s16(vmovl_high_s8(a), max_vec);
+            const int16x8_t a_low = vsubq_s16(vmovl_s8(vget_low_s8(a)), max_vec);
+            const int16x8_t a_high = vsubq_s16(vmovl_high_s8(a), max_vec);
 
             // std::cout << "a_low: ";
             // for (int i = 0; i < 8; i++) {
             //     std::cout << a_low[i] << " ";
             // }
             // std::cout << std::endl;
+            const int16x8_t neg_a_low = vnegq_s16(a_low);
+            const int16x8_t neg_a_high = vnegq_s16(a_high);
 
             const int32x4x4_t z = {
                 {
-                    vnegq_s32(vshrq_n_s32(vmulq_n_s32(vmovl_s16(vget_low_s16(a_low)), neg_inv_qln2_factor), 14)),
-                    vnegq_s32(vshrq_n_s32(vmulq_n_s32(vmovl_high_s16(a_low), neg_inv_qln2_factor), 14)),
-                    vnegq_s32(vshrq_n_s32(vmulq_n_s32(vmovl_s16(vget_low_s16(a_high)), neg_inv_qln2_factor), 14)),
-                    vnegq_s32(vshrq_n_s32(vmulq_n_s32(vmovl_high_s16(a_high), neg_inv_qln2_factor), 14))
+                    vshrq_n_s32(vmull_n_s16(vget_low_s16(neg_a_low), inv_qln2_factor), 14),
+                    vshrq_n_s32(vmull_high_n_s16(neg_a_low, inv_qln2_factor), 14),
+                    vshrq_n_s32(vmull_n_s16(vget_low_s16(neg_a_high), inv_qln2_factor), 14),
+                    vshrq_n_s32(vmull_high_n_s16(neg_a_high, inv_qln2_factor), 14)
                 }
             };
 
@@ -422,18 +424,19 @@ void CpuIBERTSoftmaxKernel::run_op(ITensorPack &tensors, const Window &window, c
             };
             const int32x4x4_t qexp = {
                 {
-                    vshlq_s32(vmlaq_s32(qcvec, ipsums.val[0], ipsums.val[0]), z.val[0]),
-                    vshlq_s32(vmlaq_s32(qcvec, ipsums.val[1], ipsums.val[1]), z.val[1]),
-                    vshlq_s32(vmlaq_s32(qcvec, ipsums.val[2], ipsums.val[2]), z.val[2]),
-                    vshlq_s32(vmlaq_s32(qcvec, ipsums.val[3], ipsums.val[3]), z.val[3])
+                    vshlq_s32(vmlaq_s32(qcvec, ipsums.val[0], ipsums.val[0]), vnegq_s32(z.val[0])),
+                    vshlq_s32(vmlaq_s32(qcvec, ipsums.val[1], ipsums.val[1]), vnegq_s32(z.val[1])),
+                    vshlq_s32(vmlaq_s32(qcvec, ipsums.val[2], ipsums.val[2]), vnegq_s32(z.val[2])),
+                    vshlq_s32(vmlaq_s32(qcvec, ipsums.val[3], ipsums.val[3]), vnegq_s32(z.val[3]))
                 }
             };
 
+            // std::cout << "test qexp: " << qexp.val[0][0] << std::endl;
             // vst1q_s32_x4(tmp_ptr + x, qexp);
             const int16x8x2_t qexp_short = {
                 {
-                    vmovn_high_s32(vmovn_s32(qexp.val[0]), qexp.val[1]),
-                    vmovn_high_s32(vmovn_s32(qexp.val[2]), qexp.val[3])
+                    vqmovn_high_s32(vqmovn_s32(qexp.val[0]), qexp.val[1]),
+                    vqmovn_high_s32(vqmovn_s32(qexp.val[2]), qexp.val[3])
                 }
             };
             
@@ -453,8 +456,8 @@ void CpuIBERTSoftmaxKernel::run_op(ITensorPack &tensors, const Window &window, c
         {
             int a = static_cast<int32_t>(*(input_ptr + x)) - max;
             // std::cout << "a = " << a << std::endl;
-            // int z = -a / qln2;
-            int z = (a * neg_inv_qln2_factor) >> 14;
+            int z = -a * inv_qln2_factor >> 14;
+            // int z = (a * neg_inv_qln2_factor) >> 14;
             int qp = a + z * qln2;
             // std::cout << "z = " << z << std::endl;
             // I-POLY(qp, src_scale)
