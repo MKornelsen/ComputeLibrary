@@ -43,6 +43,88 @@ void multiply_accumulate_qasymm8_signed_neon(const ITensor *src0, const ITensor 
     const float32x4_t vscale_1 = vdupq_n_f32(src1_qinfo.scale);
     const float32x4_t vscale_2 = vdupq_n_f32(src2_qinfo.scale);
 
+    if (src0_qinfo.offset == 0
+        && src1_qinfo.offset == 0
+        && src2_qinfo.offset == 0
+        && dst_qinfo.offset == 0) {
+
+        // std::cout << "using zero offset special case of MAC" << std::endl;
+
+        float prod_rescale = src0_qinfo.scale * src1_qinfo.scale / dst_qinfo.scale;
+        float c_rescale = src2_qinfo.scale / dst_qinfo.scale;
+
+        int prod_rescale_int = (int) ((1 << 16) * prod_rescale);
+        int c_rescale_int = (int) ((1 << 16) * c_rescale);
+
+        // std::cout << "prod rescale: " << prod_rescale << " - " << prod_rescale_int << std::endl;
+        // std::cout << "c rescale: " << c_rescale << " - " << c_rescale_int << std::endl;
+
+        execute_window_loop(win, [&](const Coordinates &)
+        {
+            const auto input0_ptr = reinterpret_cast<const int8_t *>(input0.ptr());
+            const auto input1_ptr = reinterpret_cast<const int8_t *>(input1.ptr());
+            const auto input2_ptr = reinterpret_cast<const int8_t *>(input2.ptr());
+            const auto output_ptr = reinterpret_cast<int8_t *>(output.ptr());
+
+            int x = window_start_x;
+            for (; x <= (window_end_x - window_step_x); x += window_step_x)
+            {
+                // break;
+                const int8x16_t a = vld1q_s8(input0_ptr + x);
+                const int8x16_t b = vld1q_s8(input1_ptr + x);
+                const int8x16_t c = vld1q_s8(input2_ptr + x);
+                
+                const int16x8x2_t ab = {
+                    {
+                        vmull_s8(vget_low_s8(a), vget_low_s8(b)),
+                        vmull_high_s8(a, b)
+                    }
+                };
+
+                const int32x4x4_t c_rescaled = {
+                    {
+                        vmulq_n_s32(vmovl_s16(vget_low_s16(vmovl_s8(vget_low_s8(c)))), c_rescale_int),
+                        vmulq_n_s32(vmovl_high_s16(vmovl_s8(vget_low_s8(c))), c_rescale_int),
+                        vmulq_n_s32(vmovl_s16(vget_low_s16(vmovl_high_s8(c))), c_rescale_int),
+                        vmulq_n_s32(vmovl_high_s16(vmovl_high_s8(c)), c_rescale_int)
+                    }
+                };
+
+                const int32x4x4_t out = {
+                    // vmulq_n_s32(vmovl_s16(vget_low_s16(ab.val[0])), prod_rescale_int)
+                    vshrq_n_s32(vmlaq_n_s32(c_rescaled.val[0], vmovl_s16(vget_low_s16(ab.val[0])), prod_rescale_int), 16),
+                    vshrq_n_s32(vmlaq_n_s32(c_rescaled.val[1], vmovl_high_s16(ab.val[0]), prod_rescale_int), 16),
+                    vshrq_n_s32(vmlaq_n_s32(c_rescaled.val[2], vmovl_s16(vget_low_s16(ab.val[1])), prod_rescale_int), 16),
+                    vshrq_n_s32(vmlaq_n_s32(c_rescaled.val[3], vmovl_high_s16(ab.val[1]), prod_rescale_int), 16)
+                };
+
+                const int16x8_t qout_low = vqmovn_high_s32(vqmovn_s32(out.val[0]), out.val[1]);
+                const int16x8_t qout_high = vqmovn_high_s32(vqmovn_s32(out.val[2]), out.val[3]);
+                const int8x16_t qout = vqmovn_high_s16(vqmovn_s16(qout_low), qout_high);
+                vst1q_s8(output_ptr + x, qout);
+            }
+
+            for (; x < window_end_x; ++x)
+            {
+                // std::cout << x << std::endl;
+                int a = static_cast<int32_t>(*(input0_ptr + x));
+                int b = static_cast<int32_t>(*(input1_ptr + x));
+                int c = static_cast<int32_t>(*(input2_ptr + x));
+
+                int dst = (a * b * prod_rescale_int + c * c_rescale_int) >> 16;
+                // std::cout << dst << " " << std::endl;
+                if (dst > 127) {
+                    dst = 127;
+                }
+                if (dst < -128) {
+                    dst = -128;
+                }
+                *(output_ptr + x) = (int8_t) dst;
+            }
+        },
+        input0, input1, input2, output);
+        return;
+    }
     const int32x4_t voffset_0 = vdupq_n_s32(src0_qinfo.offset);
     const int32x4_t voffset_1 = vdupq_n_s32(src1_qinfo.offset);
     const int32x4_t voffset_2 = vdupq_n_s32(src2_qinfo.offset);

@@ -68,6 +68,25 @@ private:
     std::string _name{};
 };
 
+class CpuCharlesSoftmaxKernel : public ICpuKernel<CpuCharlesSoftmaxKernel>
+{
+public:
+    CpuCharlesSoftmaxKernel() = default;
+    ARM_COMPUTE_DISALLOW_COPY_ALLOW_MOVE(CpuCharlesSoftmaxKernel);
+
+    void configure(const ITensorInfo *src, ITensorInfo *dst, int offset);
+    static Status validate(const ITensorInfo *src, const ITensorInfo *dst);
+
+    void run_op(ITensorPack &tensors, const Window &window, const ThreadInfo &info) override;
+    const char *name() const override;
+    
+    size_t get_mws(const CPUInfo &platform, size_t thread_cout) const override;
+
+private:
+    std::string _name{};
+    int _offset;
+};
+
 }
 }
 }

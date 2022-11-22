@@ -711,6 +711,156 @@ size_t CpuIBERTLayerNormKernel::get_mws(const CPUInfo &platform, size_t thread_c
     return ICPPKernel::default_mws;
 }
 
+void CpuCharlesSoftmaxKernel::configure(const ITensorInfo *src, ITensorInfo *dst, int offset)
+{
+    ARM_COMPUTE_ERROR_ON_NULLPTR(src, dst);
+    ARM_COMPUTE_ERROR_THROW_ON(validate_arguments(*src, *dst));
+
+    _name = std::string("CpuCharlesSoftmaxKernel");
+    _offset = offset;
+    
+    auto win_config = validate_and_configure_window(*src, *dst);
+
+    ARM_COMPUTE_ERROR_THROW_ON(win_config.first);
+    ICpuKernel::configure(win_config.second);
+}
+
+Status CpuCharlesSoftmaxKernel::validate(const ITensorInfo *src, const ITensorInfo *dst)
+{
+    ARM_COMPUTE_ERROR_ON_NULLPTR(src, dst);
+    ARM_COMPUTE_RETURN_ON_ERROR(validate_arguments(*src, *dst));
+    ARM_COMPUTE_RETURN_ON_ERROR(validate_and_configure_window(*src->clone(), *dst->clone()).first);
+
+    return Status{};
+}
+
+void CpuCharlesSoftmaxKernel::run_op(ITensorPack &tensors, const Window &window, const ThreadInfo &info)
+{
+    ARM_COMPUTE_UNUSED(info);
+    ARM_COMPUTE_ERROR_ON_UNCONFIGURED_KERNEL(this);
+    ARM_COMPUTE_ERROR_ON_INVALID_SUBWINDOW(ICpuKernel::window(), window);
+    ARM_COMPUTE_ERROR_ON(tensors.empty());
+
+    const ITensor *src = tensors.get_const_tensor(TensorType::ACL_SRC);
+    const ITensor *dst = tensors.get_tensor(TensorType::ACL_DST);
+
+    Window win = window;
+    win.set(Window::DimX, Window::Dimension(0, 1, 1));
+
+    const int window_step_x = 16;
+    const int window_start_x = static_cast<int>(window.x().start());
+    const int window_end_x = static_cast<int>(window.x().end());
+    
+    const float dst_scale = dst->info()->quantization_info().uniform().scale;
+
+    Iterator input(src, win);
+    Iterator output(dst, win);
+
+    const float requant_scale = (1.0f / 127.0f) / dst_scale;
+
+    const int8x16_t offset_vec = vmovq_n_s8(_offset);
+
+    execute_window_loop(win, [&](const Coordinates &)
+    {
+        const auto input_ptr = reinterpret_cast<const int8_t *>(input.ptr());
+        const auto output_ptr = reinterpret_cast<int8_t *>(output.ptr());
+
+        int32x4_t sum_vec = vmovq_n_s32(0);
+        
+        int x = window_start_x;
+        for (; x <= (window_end_x - window_step_x); x += window_step_x)
+        {
+            const int8x16_t a = vld1q_s8(input_ptr + x);
+            const int16x8_t offset_low = vaddl_s8(vget_low_s8(a), vget_low_s8(offset_vec));
+            const int16x8_t offset_high = vaddl_high_s8(a, offset_vec);
+            
+            sum_vec = vaddq_s32(sum_vec, vpaddlq_s16(offset_low));
+            sum_vec = vaddq_s32(sum_vec, vpaddlq_s16(offset_high));
+        }
+
+        int sum = vaddvq_s32(sum_vec);
+        // std::cout << "sum = " << sum << std::endl;
+
+        for (; x < window_end_x; ++x)
+        {
+            int a = static_cast<int32_t>(*(input_ptr + x));
+            sum += a;
+        }
+
+        int factor = (1 << 30) / sum;
+
+        x = window_start_x;
+        for (; x <= (window_end_x - window_step_x); x += window_step_x)
+        {
+            int8x16_t a = vld1q_s8(input_ptr + x);
+            int16x8_t offset_low = vaddl_s8(vget_low_s8(a), vget_low_s8(offset_vec));
+            int16x8_t offset_high = vaddl_high_s8(a, offset_vec);
+
+            int32x4x4_t offset_vals = {
+                {
+                    vmovl_s16(vget_low_s16(offset_low)),
+                    vmovl_high_s16(offset_low),
+                    vmovl_s16(vget_low_s16(offset_high)),
+                    vmovl_high_s16(offset_high)
+                }
+            };
+
+            int32x4x4_t qout = {
+                {
+                    vshrq_n_s32(vmulq_n_s32(offset_vals.val[0], factor), 23),
+                    vshrq_n_s32(vmulq_n_s32(offset_vals.val[1], factor), 23),
+                    vshrq_n_s32(vmulq_n_s32(offset_vals.val[2], factor), 23),
+                    vshrq_n_s32(vmulq_n_s32(offset_vals.val[3], factor), 23)
+                }
+            };
+
+            int32x4x4_t requantized = {
+                {
+                    vcvtq_s32_f32(vmulq_n_f32(vcvtq_f32_s32(qout.val[0]), requant_scale)),
+                    vcvtq_s32_f32(vmulq_n_f32(vcvtq_f32_s32(qout.val[1]), requant_scale)),
+                    vcvtq_s32_f32(vmulq_n_f32(vcvtq_f32_s32(qout.val[2]), requant_scale)),
+                    vcvtq_s32_f32(vmulq_n_f32(vcvtq_f32_s32(qout.val[3]), requant_scale))
+                }
+            };
+
+            const int16x8_t result_low_shorts = vqmovn_high_s32(vqmovn_s32(requantized.val[0]), requantized.val[1]);
+            const int16x8_t result_high_shorts = vqmovn_high_s32(vqmovn_s32(requantized.val[2]), requantized.val[3]);
+            const int8x16_t result = vqmovn_high_s16(vqmovn_s16(result_low_shorts), result_high_shorts);
+            
+            vst1q_s8(output_ptr + x, result);
+        }
+
+        for (; x < window_end_x; ++x)
+        {
+            int a = static_cast<int32_t>(*(input_ptr + x));
+            int qout = ((a + _offset) * factor) >> 23;
+            int qdst = (int) ((float) qout * requant_scale);
+            if (qdst < -128) {
+                qdst = -128;
+            }
+            if (qdst > 127) {
+                qdst = 127;
+            }
+            *(output_ptr + x) = (int8_t) qdst;
+        }
+
+    },
+    input, output);
+}
+
+const char *CpuCharlesSoftmaxKernel::name() const
+{
+    return _name.c_str();
+}
+
+size_t CpuCharlesSoftmaxKernel::get_mws(const CPUInfo &platform, size_t thread_count) const
+{
+    ARM_COMPUTE_UNUSED(thread_count);
+    ARM_COMPUTE_UNUSED(platform);
+    
+    return ICPPKernel::default_mws;
+}
+
 }
 }
 }

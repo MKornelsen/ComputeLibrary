@@ -69,6 +69,27 @@ private:
     std::unique_ptr<Impl> _impl;
 };
 
+class NECharlesSoftmax: public IFunction
+{
+public:
+
+    NECharlesSoftmax();
+    ~NECharlesSoftmax();
+
+    NECharlesSoftmax(const NECharlesSoftmax &) = delete;
+    NECharlesSoftmax(NECharlesSoftmax &&);
+
+    NECharlesSoftmax &operator=(const NECharlesSoftmax &) = delete;
+    NECharlesSoftmax &operator=(NECharlesSoftmax &&);
+
+    void configure(const ITensor *input, ITensor *output, int offset);
+    void run();
+
+private:
+    struct Impl;
+    std::unique_ptr<Impl> _impl;
+};
+
 }
 
 #endif

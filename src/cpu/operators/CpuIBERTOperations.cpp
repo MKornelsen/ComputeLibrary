@@ -63,7 +63,7 @@ experimental::MemoryRequirements CpuIBERTSoftmax::workspace() const
 
 void CpuIBERTLayerNorm::configure(const ITensorInfo *src, ITensorInfo *dst)
 {
-    ARM_COMPUTE_LOG_PARAMS(src1, dst);
+    ARM_COMPUTE_LOG_PARAMS(src, dst);
     auto k = std::make_unique<kernels::CpuIBERTLayerNormKernel>();
     k->configure(src, dst);
     _kernel = std::move(k);
@@ -72,6 +72,19 @@ void CpuIBERTLayerNorm::configure(const ITensorInfo *src, ITensorInfo *dst)
 Status CpuIBERTLayerNorm::validate(const ITensorInfo *src, const ITensorInfo *dst)
 {
     return kernels::CpuIBERTLayerNormKernel::validate(src, dst);
+}
+
+void CpuCharlesSoftmax::configure(const ITensorInfo *src, ITensorInfo *dst, int offset)
+{
+    ARM_COMPUTE_LOG_PARAMS(src, dst);
+    auto k = std::make_unique<kernels::CpuCharlesSoftmaxKernel>();
+    k->configure(src, dst, offset);
+    _kernel = std::move(k);
+}
+
+Status CpuCharlesSoftmax::validate(const ITensorInfo *src, const ITensorInfo *dst)
+{
+    return kernels::CpuCharlesSoftmaxKernel::validate(src, dst);
 }
 
 }

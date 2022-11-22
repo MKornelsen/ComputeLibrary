@@ -101,4 +101,36 @@ void NEIBERTLayerNorm::run()
     _impl->op->run(pack);
 }
 
+struct NECharlesSoftmax::Impl {
+    const ITensor *src{ nullptr };
+    const ITensor *offset{ nullptr };
+    ITensor *dst{ nullptr };
+    std::unique_ptr<cpu::CpuCharlesSoftmax> op;
+};
+
+NECharlesSoftmax::NECharlesSoftmax()
+    : _impl(std::make_unique<Impl>())
+{
+}
+
+NECharlesSoftmax::NECharlesSoftmax(NECharlesSoftmax &&) = default;
+NECharlesSoftmax &NECharlesSoftmax::operator=(NECharlesSoftmax &&) = default;
+NECharlesSoftmax::~NECharlesSoftmax() = default;
+
+void NECharlesSoftmax::configure(const ITensor *src, ITensor *dst, int offset)
+{
+    _impl->src = src;
+    _impl->dst = dst;
+    _impl->op = std::make_unique<cpu::CpuCharlesSoftmax>();
+    _impl->op->configure(_impl->src->info(), _impl->dst->info(), offset);
+}
+
+void NECharlesSoftmax::run()
+{
+    ITensorPack pack;
+    pack.add_tensor(TensorType::ACL_SRC, _impl->src);
+    pack.add_tensor(TensorType::ACL_DST, _impl->dst);
+    _impl->op->run(pack);
+}
+
 }

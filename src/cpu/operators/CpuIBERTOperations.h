@@ -44,6 +44,14 @@ public:
     static Status validate(const ITensorInfo *src, const ITensorInfo *dst);
 };
 
+class CpuCharlesSoftmax : public ICpuOperator
+{
+public:
+
+    void configure(const ITensorInfo *src, ITensorInfo *dst, int offset);
+    static Status validate(const ITensorInfo *src, const ITensorInfo *dst);
+};
+
 }
 }
 #endif
