@@ -27,7 +27,8 @@ Status CpuIBERTGELU::validate(const ITensorInfo *src, const ITensorInfo *dst)
 }
 
 CpuIBERTSoftmax::CpuIBERTSoftmax()
-    : _aux_mem(1)
+    :   _tmp(),
+        _aux_mem(1)
 {
 }
 

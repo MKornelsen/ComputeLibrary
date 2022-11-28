@@ -140,7 +140,7 @@ void CpuIBERTGELUKernel::run_op(ITensorPack &tensors, const Window &window, cons
         for (; x <= (window_end_x - window_step_x); x += window_step_x)
         {
             const int8x16_t a = vld1q_s8(input_ptr + x);
-            const int8x16_t isneg = (int8x16_t) vcltzq_s8(a);
+            // const uint8x16_t isneg = vcltzq_s8(a);
 
             // const int8x16_t clipped = vminq_s8(vabsq_s8(a), clip_max_vec);
             const int16x8_t a_low = vminq_s16(vabsq_s16(vmovl_s8(vget_low_s8(a))), clip_max_vec);
@@ -169,10 +169,10 @@ void CpuIBERTGELUKernel::run_op(ITensorPack &tensors, const Window &window, cons
 
             const uint32x4x4_t neg_uints = {
                 {
-                    vmovl_s16(vget_low_s16(vmovl_s8(vget_low_s8(isneg)))),
-                    vmovl_high_s16(vmovl_s8(vget_low_s8(isneg))),
-                    vmovl_s16(vget_low_s16(vmovl_high_s8(isneg))),
-                    vmovl_high_s16(vmovl_high_s8(isneg))
+                    vcltzq_s32(vmovl_s16(vget_low_s16(vmovl_s8(vget_low_s8(a))))),
+                    vcltzq_s32(vmovl_high_s16(vmovl_s8(vget_low_s8(a)))),
+                    vcltzq_s32(vmovl_s16(vget_low_s16(vmovl_high_s8(a)))),
+                    vcltzq_s32(vmovl_high_s16(vmovl_high_s8(a)))
                 }
             };
 

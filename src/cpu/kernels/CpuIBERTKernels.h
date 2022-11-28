@@ -84,7 +84,7 @@ public:
 
 private:
     std::string _name{};
-    float _offset;
+    float _offset{0};
 };
 
 }

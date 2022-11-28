@@ -105,7 +105,7 @@ struct NECharlesSoftmax::Impl {
     const ITensor *src{ nullptr };
     const ITensor *offset{ nullptr };
     ITensor *dst{ nullptr };
-    std::unique_ptr<cpu::CpuCharlesSoftmax> op;
+    std::unique_ptr<cpu::CpuCharlesSoftmax> op{ nullptr };
 };
 
 NECharlesSoftmax::NECharlesSoftmax()

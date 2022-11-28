@@ -65,13 +65,13 @@ void neon_qasymm8_signed_meanstddevnorm(ITensor *input, ITensor *output, float e
         auto in_ptr = reinterpret_cast<const int8_t *>(input_itr.ptr());
         auto out_ptr = reinterpret_cast<int8_t *>(output_itr.ptr());
 
-        uint32x4_t sum_vec = vdupq_n_s32(0);
-        uint32x4_t sum_sq_vec = vdupq_n_s32(0);
+        int32x4_t sum_vec = vdupq_n_s32(0);
+        int32x4_t sum_sq_vec = vdupq_n_s32(0);
 
         for (; x <= (window_end_x - window_step_x); x += window_step_x) {
             const int8x16_t data = vld1q_s8(in_ptr + x);
             
-            sum_vec = vaddq_u32(sum_vec, vpaddlq_s16(vpaddlq_s8(data)));
+            sum_vec = vaddq_s32(sum_vec, vpaddlq_s16(vpaddlq_s8(data)));
 
             const int16x8_t squares_low = vmull_s8(vget_low_s8(data), vget_low_s8(data));
             const int16x8_t squares_high = vmull_high_s8(data, data);
