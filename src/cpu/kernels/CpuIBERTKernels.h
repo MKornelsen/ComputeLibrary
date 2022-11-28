@@ -74,7 +74,7 @@ public:
     CpuCharlesSoftmaxKernel() = default;
     ARM_COMPUTE_DISALLOW_COPY_ALLOW_MOVE(CpuCharlesSoftmaxKernel);
 
-    void configure(const ITensorInfo *src, ITensorInfo *dst, int offset);
+    void configure(const ITensorInfo *src, ITensorInfo *dst, float offset);
     static Status validate(const ITensorInfo *src, const ITensorInfo *dst);
 
     void run_op(ITensorPack &tensors, const Window &window, const ThreadInfo &info) override;
@@ -84,7 +84,7 @@ public:
 
 private:
     std::string _name{};
-    int _offset;
+    float _offset;
 };
 
 }

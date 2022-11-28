@@ -82,7 +82,7 @@ public:
     NECharlesSoftmax &operator=(const NECharlesSoftmax &) = delete;
     NECharlesSoftmax &operator=(NECharlesSoftmax &&);
 
-    void configure(const ITensor *input, ITensor *output, int offset);
+    void configure(const ITensor *input, ITensor *output, float offset);
     void run();
 
 private:

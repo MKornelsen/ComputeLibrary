@@ -711,11 +711,11 @@ size_t CpuIBERTLayerNormKernel::get_mws(const CPUInfo &platform, size_t thread_c
     return ICPPKernel::default_mws;
 }
 
-void CpuCharlesSoftmaxKernel::configure(const ITensorInfo *src, ITensorInfo *dst, int offset)
+void CpuCharlesSoftmaxKernel::configure(const ITensorInfo *src, ITensorInfo *dst, float offset)
 {
     ARM_COMPUTE_ERROR_ON_NULLPTR(src, dst);
-    ARM_COMPUTE_ERROR_THROW_ON(validate_arguments(*src, *dst));
-
+    ARM_COMPUTE_ERROR_THROW_ON(validate(src, dst));
+    
     _name = std::string("CpuCharlesSoftmaxKernel");
     _offset = offset;
     
@@ -728,8 +728,14 @@ void CpuCharlesSoftmaxKernel::configure(const ITensorInfo *src, ITensorInfo *dst
 Status CpuCharlesSoftmaxKernel::validate(const ITensorInfo *src, const ITensorInfo *dst)
 {
     ARM_COMPUTE_ERROR_ON_NULLPTR(src, dst);
-    ARM_COMPUTE_RETURN_ON_ERROR(validate_arguments(*src, *dst));
-    ARM_COMPUTE_RETURN_ON_ERROR(validate_and_configure_window(*src->clone(), *dst->clone()).first);
+    ARM_COMPUTE_RETURN_ERROR_ON_DATA_TYPE_NOT_IN(src, DataType::QASYMM8_SIGNED, DataType::F32);
+    ARM_COMPUTE_RETURN_ERROR_ON_MISMATCHING_DATA_TYPES(src, dst);
+
+    if (src->data_type() == DataType::QASYMM8_SIGNED) {
+        ARM_COMPUTE_RETURN_ERROR_ON_MSG(src->quantization_info().uniform().offset != 0, "CharlesSoftmax requires offsets of 0");
+        ARM_COMPUTE_RETURN_ERROR_ON_MSG(dst->quantization_info().uniform().offset != 0, "CharlesSoftmax requires offsets of 0");
+    }
+    ARM_COMPUTE_RETURN_ERROR_ON_MSG(detail::have_different_dimensions(src->tensor_shape(), dst->tensor_shape(), 0), "Charles Softmax Operation input and output must have same size");
 
     return Status{};
 }
@@ -747,105 +753,154 @@ void CpuCharlesSoftmaxKernel::run_op(ITensorPack &tensors, const Window &window,
     Window win = window;
     win.set(Window::DimX, Window::Dimension(0, 1, 1));
 
-    const int window_step_x = 16;
     const int window_start_x = static_cast<int>(window.x().start());
     const int window_end_x = static_cast<int>(window.x().end());
     
-    const float dst_scale = dst->info()->quantization_info().uniform().scale;
-
     Iterator input(src, win);
     Iterator output(dst, win);
 
-    const float requant_scale = (1.0f / 127.0f) / dst_scale;
-
-    const int8x16_t offset_vec = vmovq_n_s8(_offset);
-
-    execute_window_loop(win, [&](const Coordinates &)
+    if (src->info()->data_type() == DataType::QASYMM8_SIGNED) 
     {
-        const auto input_ptr = reinterpret_cast<const int8_t *>(input.ptr());
-        const auto output_ptr = reinterpret_cast<int8_t *>(output.ptr());
+        const int window_step_x = 16;
 
-        int32x4_t sum_vec = vmovq_n_s32(0);
+        const float dst_scale = dst->info()->quantization_info().uniform().scale;
+        const float requant_scale = (1.0f / 127.0f) / dst_scale;
+
+        const int ioffset = (int) _offset;
+        const int8x16_t offset_vec = vmovq_n_s8(ioffset);
+
+        execute_window_loop(win, [&](const Coordinates &)
+        {
+            const auto input_ptr = reinterpret_cast<const int8_t *>(input.ptr());
+            const auto output_ptr = reinterpret_cast<int8_t *>(output.ptr());
+
+            int32x4_t sum_vec = vmovq_n_s32(0);
+            
+            int x = window_start_x;
+            for (; x <= (window_end_x - window_step_x); x += window_step_x)
+            {
+                const int8x16_t a = vld1q_s8(input_ptr + x);
+                const int16x8_t offset_low = vaddl_s8(vget_low_s8(a), vget_low_s8(offset_vec));
+                const int16x8_t offset_high = vaddl_high_s8(a, offset_vec);
+                
+                sum_vec = vaddq_s32(sum_vec, vpaddlq_s16(offset_low));
+                sum_vec = vaddq_s32(sum_vec, vpaddlq_s16(offset_high));
+            }
+
+            int sum = vaddvq_s32(sum_vec);
+            // std::cout << "sum = " << sum << std::endl;
+
+            for (; x < window_end_x; ++x)
+            {
+                int a = static_cast<int32_t>(*(input_ptr + x));
+                sum += a;
+            }
+
+            int factor = (1 << 30) / sum;
+
+            x = window_start_x;
+            for (; x <= (window_end_x - window_step_x); x += window_step_x)
+            {
+                int8x16_t a = vld1q_s8(input_ptr + x);
+                int16x8_t offset_low = vaddl_s8(vget_low_s8(a), vget_low_s8(offset_vec));
+                int16x8_t offset_high = vaddl_high_s8(a, offset_vec);
+
+                int32x4x4_t offset_vals = {
+                    {
+                        vmovl_s16(vget_low_s16(offset_low)),
+                        vmovl_high_s16(offset_low),
+                        vmovl_s16(vget_low_s16(offset_high)),
+                        vmovl_high_s16(offset_high)
+                    }
+                };
+
+                int32x4x4_t qout = {
+                    {
+                        vshrq_n_s32(vmulq_n_s32(offset_vals.val[0], factor), 23),
+                        vshrq_n_s32(vmulq_n_s32(offset_vals.val[1], factor), 23),
+                        vshrq_n_s32(vmulq_n_s32(offset_vals.val[2], factor), 23),
+                        vshrq_n_s32(vmulq_n_s32(offset_vals.val[3], factor), 23)
+                    }
+                };
+
+                int32x4x4_t requantized = {
+                    {
+                        vcvtq_s32_f32(vmulq_n_f32(vcvtq_f32_s32(qout.val[0]), requant_scale)),
+                        vcvtq_s32_f32(vmulq_n_f32(vcvtq_f32_s32(qout.val[1]), requant_scale)),
+                        vcvtq_s32_f32(vmulq_n_f32(vcvtq_f32_s32(qout.val[2]), requant_scale)),
+                        vcvtq_s32_f32(vmulq_n_f32(vcvtq_f32_s32(qout.val[3]), requant_scale))
+                    }
+                };
+
+                const int16x8_t result_low_shorts = vqmovn_high_s32(vqmovn_s32(requantized.val[0]), requantized.val[1]);
+                const int16x8_t result_high_shorts = vqmovn_high_s32(vqmovn_s32(requantized.val[2]), requantized.val[3]);
+                const int8x16_t result = vqmovn_high_s16(vqmovn_s16(result_low_shorts), result_high_shorts);
+                
+                vst1q_s8(output_ptr + x, result);
+            }
+
+            for (; x < window_end_x; ++x)
+            {
+                int a = static_cast<int32_t>(*(input_ptr + x));
+                int qout = ((a + ioffset) * factor) >> 23;
+                int qdst = (int) ((float) qout * requant_scale);
+                if (qdst < -128) {
+                    qdst = -128;
+                }
+                if (qdst > 127) {
+                    qdst = 127;
+                }
+                *(output_ptr + x) = (int8_t) qdst;
+            }
+
+        },
+        input, output);
+    } 
+    else if (src->info()->data_type() == DataType::F32)
+    {
+        const int window_step_x = 4;
         
-        int x = window_start_x;
-        for (; x <= (window_end_x - window_step_x); x += window_step_x)
+        const float32x4_t offset_vec = vmovq_n_f32(_offset);
+
+        execute_window_loop(win, [&](const Coordinates &)
         {
-            const int8x16_t a = vld1q_s8(input_ptr + x);
-            const int16x8_t offset_low = vaddl_s8(vget_low_s8(a), vget_low_s8(offset_vec));
-            const int16x8_t offset_high = vaddl_high_s8(a, offset_vec);
-            
-            sum_vec = vaddq_s32(sum_vec, vpaddlq_s16(offset_low));
-            sum_vec = vaddq_s32(sum_vec, vpaddlq_s16(offset_high));
-        }
+            const auto input_ptr = reinterpret_cast<const float32_t *>(input.ptr());
+            const auto output_ptr = reinterpret_cast<float32_t *>(output.ptr());
 
-        int sum = vaddvq_s32(sum_vec);
-        // std::cout << "sum = " << sum << std::endl;
-
-        for (; x < window_end_x; ++x)
-        {
-            int a = static_cast<int32_t>(*(input_ptr + x));
-            sum += a;
-        }
-
-        int factor = (1 << 30) / sum;
-
-        x = window_start_x;
-        for (; x <= (window_end_x - window_step_x); x += window_step_x)
-        {
-            int8x16_t a = vld1q_s8(input_ptr + x);
-            int16x8_t offset_low = vaddl_s8(vget_low_s8(a), vget_low_s8(offset_vec));
-            int16x8_t offset_high = vaddl_high_s8(a, offset_vec);
-
-            int32x4x4_t offset_vals = {
-                {
-                    vmovl_s16(vget_low_s16(offset_low)),
-                    vmovl_high_s16(offset_low),
-                    vmovl_s16(vget_low_s16(offset_high)),
-                    vmovl_high_s16(offset_high)
-                }
-            };
-
-            int32x4x4_t qout = {
-                {
-                    vshrq_n_s32(vmulq_n_s32(offset_vals.val[0], factor), 23),
-                    vshrq_n_s32(vmulq_n_s32(offset_vals.val[1], factor), 23),
-                    vshrq_n_s32(vmulq_n_s32(offset_vals.val[2], factor), 23),
-                    vshrq_n_s32(vmulq_n_s32(offset_vals.val[3], factor), 23)
-                }
-            };
-
-            int32x4x4_t requantized = {
-                {
-                    vcvtq_s32_f32(vmulq_n_f32(vcvtq_f32_s32(qout.val[0]), requant_scale)),
-                    vcvtq_s32_f32(vmulq_n_f32(vcvtq_f32_s32(qout.val[1]), requant_scale)),
-                    vcvtq_s32_f32(vmulq_n_f32(vcvtq_f32_s32(qout.val[2]), requant_scale)),
-                    vcvtq_s32_f32(vmulq_n_f32(vcvtq_f32_s32(qout.val[3]), requant_scale))
-                }
-            };
-
-            const int16x8_t result_low_shorts = vqmovn_high_s32(vqmovn_s32(requantized.val[0]), requantized.val[1]);
-            const int16x8_t result_high_shorts = vqmovn_high_s32(vqmovn_s32(requantized.val[2]), requantized.val[3]);
-            const int8x16_t result = vqmovn_high_s16(vqmovn_s16(result_low_shorts), result_high_shorts);
-            
-            vst1q_s8(output_ptr + x, result);
-        }
-
-        for (; x < window_end_x; ++x)
-        {
-            int a = static_cast<int32_t>(*(input_ptr + x));
-            int qout = ((a + _offset) * factor) >> 23;
-            int qdst = (int) ((float) qout * requant_scale);
-            if (qdst < -128) {
-                qdst = -128;
+            float32x4_t sum_vec = vmovq_n_f32(0);
+            int x = window_start_x;
+            for (; x <= (window_end_x - window_step_x); x += window_step_x)
+            {
+                const float32x4_t a = vld1q_f32(input_ptr + x);
+                sum_vec = vaddq_f32(sum_vec, vaddq_f32(a, offset_vec));
             }
-            if (qdst > 127) {
-                qdst = 127;
-            }
-            *(output_ptr + x) = (int8_t) qdst;
-        }
 
-    },
-    input, output);
+            float sum = vaddvq_f32(sum_vec);
+            for (; x < window_end_x; ++x)
+            {
+                float a = static_cast<float>(*(input_ptr + x));
+                sum += (a + _offset);
+            }
+
+            float scale = 1.0f / sum;
+            // std::cout << "sum = " << sum << ", scale = " << scale << std::endl;
+
+            x = window_start_x;
+            for (; x <= (window_end_x - window_step_x); x += window_step_x)
+            {
+                float32x4_t a = vld1q_f32(input_ptr + x);
+                const float32x4_t out = vmulq_n_f32(vaddq_f32(a, offset_vec), scale);
+                vst1q_f32(output_ptr + x, out);
+            }
+
+            for (; x < window_end_x; ++x)
+            {
+                float a = static_cast<float>(*(input_ptr + x));
+                *(output_ptr + x) = (a + _offset) * scale;
+            }
+        },
+        input, output);
+    }
 }
 
 const char *CpuCharlesSoftmaxKernel::name() const

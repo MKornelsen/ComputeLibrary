@@ -74,7 +74,7 @@ Status CpuIBERTLayerNorm::validate(const ITensorInfo *src, const ITensorInfo *ds
     return kernels::CpuIBERTLayerNormKernel::validate(src, dst);
 }
 
-void CpuCharlesSoftmax::configure(const ITensorInfo *src, ITensorInfo *dst, int offset)
+void CpuCharlesSoftmax::configure(const ITensorInfo *src, ITensorInfo *dst, float offset)
 {
     ARM_COMPUTE_LOG_PARAMS(src, dst);
     auto k = std::make_unique<kernels::CpuCharlesSoftmaxKernel>();

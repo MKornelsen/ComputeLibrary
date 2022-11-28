@@ -48,7 +48,7 @@ class CpuCharlesSoftmax : public ICpuOperator
 {
 public:
 
-    void configure(const ITensorInfo *src, ITensorInfo *dst, int offset);
+    void configure(const ITensorInfo *src, ITensorInfo *dst, float offset);
     static Status validate(const ITensorInfo *src, const ITensorInfo *dst);
 };
 

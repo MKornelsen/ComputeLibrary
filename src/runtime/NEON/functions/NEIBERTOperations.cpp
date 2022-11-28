@@ -117,7 +117,7 @@ NECharlesSoftmax::NECharlesSoftmax(NECharlesSoftmax &&) = default;
 NECharlesSoftmax &NECharlesSoftmax::operator=(NECharlesSoftmax &&) = default;
 NECharlesSoftmax::~NECharlesSoftmax() = default;
 
-void NECharlesSoftmax::configure(const ITensor *src, ITensor *dst, int offset)
+void NECharlesSoftmax::configure(const ITensor *src, ITensor *dst, float offset)
 {
     _impl->src = src;
     _impl->dst = dst;
