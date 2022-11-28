@@ -440,7 +440,9 @@ void CpuIBERTSoftmaxKernel::run_op(ITensorPack &tensors, const Window &window, c
                 }
             };
             
-            vst1q_s16_x2(tmp_ptr + x, qexp_short);
+            // vst1q_s16_x2(tmp_ptr + x, qexp_short);
+            vst1q_s16(tmp_ptr + x, qexp_short.val[0]);
+            vst1q_s16(tmp_ptr + x + 8, qexp_short.val[1]);
 
             sum_vec = vaddq_s32(sum_vec, qexp.val[0]);
             sum_vec = vaddq_s32(sum_vec, qexp.val[1]);
@@ -477,7 +479,13 @@ void CpuIBERTSoftmaxKernel::run_op(ITensorPack &tensors, const Window &window, c
 
         for (; x <= (window_end_x - window_step_x); x += window_step_x)
         {
-            int16x8x2_t qexp_short = vld1q_s16_x2(tmp_ptr + x);
+            // int16x8x2_t qexp_short = vld1q_s16_x2(tmp_ptr + x);
+            int16x8x2_t qexp_short = {
+                {
+                    vld1q_s16(tmp_ptr + x),
+                    vld1q_s16(tmp_ptr + x + 8)
+                }
+            };
 
             int32x4x4_t qexp = {
                 {
