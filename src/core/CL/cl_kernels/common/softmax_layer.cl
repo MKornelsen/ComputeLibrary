@@ -23,6 +23,10 @@
  */
 #include "helpers.h"
 
+#ifndef HALF_MAX
+#define HALF_MAX 0x1.ffcp15h
+#endif
+
 #if defined(DATA_TYPE) && defined(MIN_VALUE) && defined(VECTOR_SIZE) && defined(VECTOR_SIZE_LEFTOVER)
 
 /** Divides all the values of the input tensor by the sum calculated from softmax_layer_shift_exp_sum kernel.
