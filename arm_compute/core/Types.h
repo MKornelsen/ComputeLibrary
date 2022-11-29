@@ -2245,6 +2245,11 @@ public:
     {
         return _broadcast_bias;
     };
+
+    void set_broadcast_bias(bool broadcast_bias)
+    {
+        _broadcast_bias = broadcast_bias;
+    }
     /** Flag which specifies whether A should be pre-transposed if supported.
      *
      * @return True if A should be pre-transposed else false.
