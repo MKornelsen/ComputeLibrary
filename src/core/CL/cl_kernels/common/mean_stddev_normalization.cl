@@ -79,8 +79,8 @@ __kernel void mean_stddev_normalization(
         sum += data;
 #ifdef MEANSTDNORM_HALF
         VEC_DATA_TYPE(float, VEC_SIZE)
-        dsq = CONVERT(data * data, VEC_DATA_TYPE(float, VEC_SIZE));
-        sum_sq += dsq;
+        dsq = CONVERT(data, VEC_DATA_TYPE(float, VEC_SIZE));
+        sum_sq += dsq * dsq;
 #else
         sum_sq += data * data;
 #endif
